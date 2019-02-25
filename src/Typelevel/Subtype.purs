@@ -15,6 +15,8 @@ import Data.Maybe
 import Type.Prelude
 import Type.Data.Boolean 
 
+import Data.NaturalTransformation
+
 class Elem f g res <= Subsume res f g where 
   inj' :: forall a. Proxy res -> f a -> g a 
   prj' :: forall a. Proxy res -> g a -> Maybe (f a) 
@@ -43,12 +45,6 @@ instance subsumeR :: ( Elem f (l :+: r) (Found (R res))
 
   prj' _ (Coproduct (Right fa)) = prj' (Proxy :: Proxy (Found res)) fa 
   prj' _ _        = Nothing 
-
-inj :: forall res f g a. Elem f g res => Subsume res f g => f a -> g a 
-inj fa = inj' (Proxy :: Proxy res) fa
-
-prj :: forall res f g a. Elem f g res => Subsume res f g => g a -> Maybe (f a) 
-prj ga = prj' (Proxy :: Proxy res) ga
 
 -- "strucs", or a type-level measure of the atomicity of a coproduct 
 data Atom res
@@ -97,18 +93,36 @@ instance subty2 :: ( Subtype s1 f1 g
 -- | subtype api ---------------------------------------------------------
 --------------------------------------------------------------------------
 
-inject :: forall s f g a 
-        . GetStruc f g s 
-       => Subtype s f g 
-       => Dupl f Nil False 
-       => f a 
-       -> g a 
+type Subsumption f g a = SubT f g => a
+infixl 4 type Subsumption as :<:
+
+type Has2 l f g a = (f :<: l) ((g :<: l) a)
+
+{-}
+inject :: forall s f g a. Subsumed s f g => f a -> g a 
 inject = inj'' (Proxy :: Proxy s)
 
-project :: forall s f g a 
-         . GetStruc f g s 
-        => Subtype s f g 
-        => Dupl f Nil False 
-        => g a 
-        -> Maybe (f a)
-project = prj'' (Proxy :: Proxy s) 
+project :: forall s f g a. Subsumed s f g => g a -> Maybe (f a)
+project = prj'' (Proxy :: Proxy s)  -}
+
+class ( GetStruc f g s , Subtype s f g, Dupl f Nil False ) <= Subsumed s f g | f g -> s
+
+instance subsumed :: (GetStruc f g s, Subtype s f g, Dupl f Nil False) => Subsumed s f g
+
+type Isomorphism f g a = SubT f g => SubT g f => a
+
+infixl 4 type Isomorphism as :~: 
+
+split :: forall f l r a b. (f :~: l :+: r) ((l a -> b) -> (r a -> b) -> f a -> b) 
+split fl fr x = case inj x of Coproduct (Left y)  -> fl y 
+                              Coproduct (Right y) -> fr y
+
+class SubT (f :: Type -> Type) (g :: Type -> Type) 
+  where 
+  inj :: forall a. f a -> g a 
+  prj :: forall a. g a -> Maybe (f a)
+
+instance subT :: ( GetStruc f g s , Subtype s f g , Dupl f Nil False ) => SubT f g
+  where
+  inj = inj'' (Proxy :: Proxy s) 
+  prj = prj'' (Proxy :: Proxy s)
